@@ -1,0 +1,19 @@
+<?xml version="1.0"?>
+<!--
+  ~ Copyright (c) 2022. All rights reserved.
+  ~ @author: Volodymyr Hryvinskyi <mailto:volodymyr@hryvinskyi.com>
+  -->
+
+<page xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+      xsi:noNamespaceSchemaLocation="urn:magento:framework:View/Layout/etc/page_configuration.xsd">
+    <body>
+        <referenceContainer name="before.body.end">
+            <block ifconfig="hryvinskyi_pagespeed/js/enabled_extreme_lazy_load" name="extreme_script_lazy_load"
+                   template="Hryvinskyi_PageSpeedJsExtremeLazyLoadFrontendUi::extreme_script_lazy_load.phtml">
+                <arguments>
+                    <argument name="configViewModel" xsi:type="object">Hryvinskyi\PageSpeedJsExtremeLazyLoadFrontendUi\ViewModel\ConfigViewModel</argument>
+                </arguments>
+            </block>
+        </referenceContainer>
+    </body>
+</page>
