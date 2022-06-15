@@ -1,30 +1,30 @@
 {
-  "name": "hryvinskyi/magento2-page-speed-js-extreme-lazy-load-frontend-ui",
-  "version": "1.0.0",
-  "description": "N/A",
-  "type": "magento2-module",
-  "require": {
-    "magento/framework": "*",
-    "hryvinskyi/magento2-page-speed-js-extreme-lazy-load": "1.0.*"
-  },
-  "require-dev": {
-    "roave/security-advisories": "dev-latest"
-  },
-  "authors": [
-    {
-      "name": "Volodymyr Hryvinskyi",
-      "email": "volodymyr@hryvinskyi.com"
-    }
-  ],
-  "license": [
-    "MIT"
-  ],
-  "autoload": {
-    "files": [
-      "registration.php"
+    "name": "hryvinskyi/magento2-page-speed-js-extreme-lazy-load-frontend-ui",
+    "version": "1.0.1",
+    "description": "N/A",
+    "type": "magento2-module",
+    "require": {
+        "magento/framework": "*",
+        "hryvinskyi/magento2-page-speed-js-extreme-lazy-load": "1.0.*"
+    },
+    "require-dev": {
+        "roave/security-advisories": "dev-latest"
+    },
+    "authors": [
+        {
+            "name": "Volodymyr Hryvinskyi",
+            "email": "volodymyr@hryvinskyi.com"
+        }
     ],
-    "psr-4": {
-      "Hryvinskyi\\PageSpeedJsExtremeLazyLoadFrontendUi\\": ""
+    "license": [
+        "MIT"
+    ],
+    "autoload": {
+        "files": [
+            "registration.php"
+        ],
+        "psr-4": {
+            "Hryvinskyi\\PageSpeedJsExtremeLazyLoadFrontendUi\\": ""
+        }
     }
-  }
 }

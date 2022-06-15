@@ -8,7 +8,7 @@
       xsi:noNamespaceSchemaLocation="urn:magento:framework:View/Layout/etc/page_configuration.xsd">
     <body>
         <referenceContainer name="before.body.end">
-            <block ifconfig="hryvinskyi_pagespeed/js/enabled_extreme_lazy_load" name="extreme_script_lazy_load"
+            <block ifconfig="hryvinskyi_pagespeed/js/extreme_lazy_load/enabled" name="extreme_script_lazy_load"
                    template="Hryvinskyi_PageSpeedJsExtremeLazyLoadFrontendUi::extreme_script_lazy_load.phtml">
                 <arguments>
                     <argument name="configViewModel" xsi:type="object">Hryvinskyi\PageSpeedJsExtremeLazyLoadFrontendUi\ViewModel\ConfigViewModel</argument>
