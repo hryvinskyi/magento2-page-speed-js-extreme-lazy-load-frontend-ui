@@ -19,28 +19,31 @@ $configViewModel = $block->getData('configViewModel');
         let extremeLazyLoadIterator = 0;
 
         <?php if ($configViewModel->getConfig()->isTimeOutEnabled() === true) : ?>
-        let timeOut;
-        document.addEventListener('DOMContentLoaded', () => {
-            timeOut = setTimeout(initScripts, <?= $configViewModel->getConfig()->getTimeOut() ?>);
-        });
+            let timeOut;
+            document.addEventListener('DOMContentLoaded', () => {
+                timeOut = setTimeout(initScripts, <?= $configViewModel->getConfig()->getTimeOut() ?>);
+            });
         <?php endif; ?>
         <?php foreach ($configViewModel->getConfig()->getDelayEvents() as $delayEvent): ?>
-        document.addEventListener('<?php echo $delayEvent ?>', initScriptsOnEvent);
+            document.addEventListener('<?php echo $delayEvent ?>', initScriptsOnEvent);
         <?php endforeach; ?>
 
         function initScriptsOnEvent(event) {
-            event.currentTarget.removeEventListener(event.type, initScriptsOnEvent);
+            <?php foreach ($configViewModel->getConfig()->getDelayEvents() as $delayEvent): ?>
+                document.removeEventListener('<?php echo $delayEvent ?>', initScriptsOnEvent);
+            <?php endforeach; ?>
             <?php if ($configViewModel->getConfig()->isTimeOutEnabled() === true) : ?>
-            clearTimeout(timeOut);
+                clearTimeout(timeOut);
             <?php endif; ?>
+
             initScripts();
         }
 
         function initScripts() {
-            if (scripts.length === 0 || scripts.length < extremeLazyLoadIterator + 1) {
+            if (scripts.length === 0 || scripts.length <= extremeLazyLoadIterator + 1) {
                 return;
             }
-            script = scripts[extremeLazyLoadIterator];
+            let script = scripts[extremeLazyLoadIterator];
             if (script.getAttribute('data-lazy-source') !== null) {
                 loadExternalJs(script);
             } else {
