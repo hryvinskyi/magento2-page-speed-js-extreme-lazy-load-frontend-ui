@@ -13,6 +13,8 @@ use Hryvinskyi\PageSpeedApi\Api\Html\ReplaceIntoHtmlInterface;
 use Hryvinskyi\PageSpeedApi\Model\ModificationInterface;
 use Hryvinskyi\PageSpeedJsExtremeLazyLoad\Api\ConfigInterface;
 use Hryvinskyi\PageSpeedJsExtremeLazyLoad\Model\CanScriptLazyLoadingInterface;
+use Magento\Framework\App\RequestInterface;
+use Magento\Store\Model\ScopeInterface;
 
 class LazyLoadModification implements ModificationInterface
 {
@@ -20,23 +22,27 @@ class LazyLoadModification implements ModificationInterface
     private JsFinderInterface $jsFinder;
     private ReplaceIntoHtmlInterface $replaceIntoHtml;
     private CanScriptLazyLoadingInterface $canScriptLazyLoading;
+    private RequestInterface $request;
 
     /**
      * @param ConfigInterface $config
      * @param JsFinderInterface $jsFinder
      * @param ReplaceIntoHtmlInterface $replaceIntoHtml
      * @param CanScriptLazyLoadingInterface $canScriptLazyLoading
+     * @param RequestInterface $request
      */
     public function __construct(
         ConfigInterface $config,
         JsFinderInterface $jsFinder,
         ReplaceIntoHtmlInterface $replaceIntoHtml,
-        CanScriptLazyLoadingInterface $canScriptLazyLoading
+        CanScriptLazyLoadingInterface $canScriptLazyLoading,
+        RequestInterface $request
     ) {
         $this->config = $config;
         $this->jsFinder = $jsFinder;
         $this->replaceIntoHtml = $replaceIntoHtml;
         $this->canScriptLazyLoading = $canScriptLazyLoading;
+        $this->request = $request;
     }
 
     /**
@@ -44,7 +50,12 @@ class LazyLoadModification implements ModificationInterface
      */
     public function execute(string &$html): void
     {
+        // @TODO Refactor to have a list to chacking if need disable or enable this functionality
         if ($this->config->isEnabled() === false) {
+            return;
+        }
+
+        if (in_array(trim($this->request->getRequestUri(), '/'), $this->config->getExcludeByUri(), true) === true) {
             return;
         }
 
@@ -57,7 +68,7 @@ class LazyLoadModification implements ModificationInterface
             && in_array($this->request->getFullActionName(), $this->config->getDisableForPageTypes(), true) === true) {
             return;
         }
-        
+
         $tagList = $this->jsFinder->findAll($html);
 
         $replaceData = [];
