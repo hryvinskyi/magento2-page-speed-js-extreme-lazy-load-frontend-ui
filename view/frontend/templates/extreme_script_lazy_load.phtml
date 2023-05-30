@@ -19,10 +19,7 @@ $configViewModel = $block->getData('configViewModel');
         let extremeLazyLoadIterator = 0;
 
         <?php if ($configViewModel->getConfig()->isTimeOutEnabled() === true) : ?>
-            let timeOut;
-            document.addEventListener('DOMContentLoaded', () => {
-                timeOut = setTimeout(initScripts, <?= $configViewModel->getConfig()->getTimeOut() ?>);
-            });
+            let timeOut = setTimeout(initScripts, <?= $configViewModel->getConfig()->getTimeOut() ?>);
         <?php endif; ?>
         <?php foreach ($configViewModel->getConfig()->getDelayEvents() as $delayEvent): ?>
             document.addEventListener('<?php echo $delayEvent ?>', initScriptsOnEvent);
