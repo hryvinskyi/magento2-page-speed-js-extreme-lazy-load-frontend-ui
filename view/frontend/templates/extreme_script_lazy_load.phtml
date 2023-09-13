@@ -14,77 +14,96 @@ declare(strict_types=1);
 $configViewModel = $block->getData('configViewModel');
 ?>
 <script data-ignore-extreme-lazy-load data-pagespeed-ignore-merge>
-    window.addEventListener('load', function () {
-        const scripts = document.querySelectorAll('script[type=lazyload]');
-        let extremeLazyLoadIterator = 0;
-
-        <?php if ($configViewModel->getConfig()->isTimeOutEnabled() === true) : ?>
-            let timeOut = setTimeout(initScripts, <?= $configViewModel->getConfig()->getTimeOut() ?>);
-        <?php endif; ?>
-        <?php foreach ($configViewModel->getConfig()->getDelayEvents() as $delayEvent): ?>
-            document.addEventListener('<?php echo $delayEvent ?>', initScriptsOnEvent);
-        <?php endforeach; ?>
-
-        function initScriptsOnEvent(event) {
-            <?php foreach ($configViewModel->getConfig()->getDelayEvents() as $delayEvent): ?>
-                document.removeEventListener('<?php echo $delayEvent ?>', initScriptsOnEvent);
-            <?php endforeach; ?>
-            <?php if ($configViewModel->getConfig()->isTimeOutEnabled() === true) : ?>
-                clearTimeout(timeOut);
-            <?php endif; ?>
-
-            initScripts();
-        }
-
-        function initScripts() {
-            if (scripts.length === 0 || scripts.length <= extremeLazyLoadIterator + 1) {
+    (function (w, d) {
+        w.lozyScriptsLoaded = w.lazyScriptsEventsLoaded = false;
+        w.addEventListener('load', function () {
+            if (w.lozyScriptsLoaded === true) {
                 return;
             }
-            let script = scripts[extremeLazyLoadIterator];
-            if (script.getAttribute('data-lazy-source') !== null) {
-                loadExternalJs(script);
-            } else {
-                loadInlineJs(script);
+            w.lozyScriptsLoaded = true;
+
+            const scripts = d.querySelectorAll('script[type=lazyload]');
+            let extremeLazyLoadIterator = 0;
+
+            <?php if ($configViewModel->getConfig()->isTimeOutEnabled() === true) : ?>
+            let timeOut = setTimeout(initScripts, <?= $configViewModel->getConfig()->getTimeOut() ?>);
+            <?php endif; ?>
+            <?php foreach ($configViewModel->getConfig()->getDelayEvents() as $delayEvent): ?>
+            d.addEventListener('<?php echo $delayEvent ?>', initScriptsOnEvent);
+            <?php endforeach; ?>
+
+            function initScriptsOnEvent(event) {
+                <?php foreach ($configViewModel->getConfig()->getDelayEvents() as $delayEvent): ?>
+                d.removeEventListener('<?php echo $delayEvent ?>', initScriptsOnEvent);
+                <?php endforeach; ?>
+                <?php if ($configViewModel->getConfig()->isTimeOutEnabled() === true) : ?>
+                clearTimeout(timeOut);
+                <?php endif; ?>
+
+                initScripts();
             }
 
-            if (scripts.length === extremeLazyLoadIterator) {
-                let evt = document.createEvent('Event');
-                evt.initEvent('load', false, false);
-                window.dispatchEvent(evt);
-            }
-        }
-
-        function iterateLoadScript()
-        {
-            extremeLazyLoadIterator++;
-            initScripts();
-        }
-
-        function loadExternalJs(oldScript) {
-            const script = document.createElement('script');
-            script.type = 'text/javascript';
-            script.src = oldScript.getAttribute('data-lazy-source');
-            // script.async = true;
-            script.onload = iterateLoadScript;
-            script.onerror = iterateLoadScript;
-            if (typeof(oldScript.attributes) !== "undefined") {
-                for (var attr, i = 0, attrs = script.attributes, n = attrs.length; i < n; i++) {
-                    attr = attrs[i];
-                    if (attr.nodeName !== 'data-lazy-source' && attr.nodeName !== 'type') {
-                        script.setAttribute(attr.nodeName, attr.nodeValue);
-                    }
+            function initScripts() {
+                if (scripts.length === 0 || scripts.length <= extremeLazyLoadIterator + 1) {
+                    return;
+                }
+                let script = scripts[extremeLazyLoadIterator];
+                if (script.getAttribute('data-lazy-source') !== null) {
+                    loadExternalJs(script);
+                } else {
+                    loadInlineJs(script);
                 }
             }
-            document.head.appendChild(script);
-        }
 
-        function loadInlineJs(element) {
-            const script = document.createElement('script');
-            script.type = 'text/javascript';
-            script.innerHTML = element.innerHTML;
-            element.before(script);
-            element.remove();
-            iterateLoadScript();
-        }
-    });
+            function iterateLoadScript()
+            {
+                extremeLazyLoadIterator++;
+
+                initScripts();
+
+                if (w.lazyScriptsEventsLoaded === false && scripts.length === extremeLazyLoadIterator + 1) {
+                    w.lazyScriptsEventsLoaded = true;
+
+                    const evtLoad = d.createEvent('Event');
+                    const evtDOMContentLoaded = d.createEvent('Event');
+                    const evtCustom = d.createEvent('Event');
+
+                    evtLoad.initEvent('load', false, false);
+                    evtDOMContentLoaded.initEvent('DOMContentLoaded', false, false);
+                    evtCustom.initEvent('LazyScriptsLoaded', false, false);
+
+                    w.dispatchEvent(evtLoad);
+                    d.dispatchEvent(evtDOMContentLoaded);
+                    d.dispatchEvent(evtCustom);
+                }
+            }
+
+            function loadExternalJs(oldScript) {
+                const script = d.createElement('script');
+                script.type = 'text/javascript';
+                script.src = oldScript.getAttribute('data-lazy-source');
+                // script.async = true;
+                script.onload = iterateLoadScript;
+                script.onerror = iterateLoadScript;
+                if (typeof(oldScript.attributes) !== "undefined") {
+                    for (var attr, i = 0, attrs = script.attributes, n = attrs.length; i < n; i++) {
+                        attr = attrs[i];
+                        if (attr.nodeName !== 'data-lazy-source' && attr.nodeName !== 'type') {
+                            script.setAttribute(attr.nodeName, attr.nodeValue);
+                        }
+                    }
+                }
+                d.head.appendChild(script);
+            }
+
+            function loadInlineJs(element) {
+                const script = d.createElement('script');
+                script.type = 'text/javascript';
+                script.innerHTML = element.innerHTML;
+                element.before(script);
+                element.remove();
+                iterateLoadScript();
+            }
+        });
+    })(window, document);
 </script>
