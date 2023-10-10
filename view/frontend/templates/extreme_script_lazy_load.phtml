@@ -64,17 +64,9 @@ $configViewModel = $block->getData('configViewModel');
                 if (w.lazyScriptsEventsLoaded === false && scripts.length === extremeLazyLoadIterator + 1) {
                     w.lazyScriptsEventsLoaded = true;
 
-                    const evtLoad = d.createEvent('Event');
-                    const evtDOMContentLoaded = d.createEvent('Event');
-                    const evtCustom = d.createEvent('Event');
-
-                    evtLoad.initEvent('load', false, false);
-                    evtDOMContentLoaded.initEvent('DOMContentLoaded', false, false);
-                    evtCustom.initEvent('LazyScriptsLoaded', false, false);
-
-                    w.dispatchEvent(evtLoad);
-                    d.dispatchEvent(evtDOMContentLoaded);
-                    d.dispatchEvent(evtCustom);
+                    w.dispatchEvent(new Event("load"))
+                    d.dispatchEvent(new Event("DOMContentLoaded"))
+                    d.dispatchEvent(new Event("LazyScriptsLoaded"))
                 }
             }
 
@@ -103,6 +95,17 @@ $configViewModel = $block->getData('configViewModel');
                 element.before(script);
                 element.remove();
                 iterateLoadScript();
+            }
+
+            if (localStorage) {
+                if (localStorage.getItem('extremeLazyLoad') === 'true') {
+                    console.log(new Event("ExtremeLazyLoad"));
+                    d.dispatchEvent(new Event("ExtremeLazyLoad"))
+                } else {
+                    d.addEventListener('LazyScriptsLoaded', function () {
+                        localStorage.setItem('extremeLazyLoad', 'true');
+                    });
+                }
             }
         };
 
