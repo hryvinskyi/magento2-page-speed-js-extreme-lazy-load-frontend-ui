@@ -99,7 +99,6 @@ $configViewModel = $block->getData('configViewModel');
 
             if (localStorage) {
                 if (localStorage.getItem('extremeLazyLoad') === 'true') {
-                    console.log(new Event("ExtremeLazyLoad"));
                     d.dispatchEvent(new Event("ExtremeLazyLoad"))
                 } else {
                     d.addEventListener('LazyScriptsLoaded', function () {
