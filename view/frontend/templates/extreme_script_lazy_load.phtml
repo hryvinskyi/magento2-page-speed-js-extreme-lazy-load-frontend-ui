@@ -118,6 +118,7 @@ $scriptContent = <<<JS
             
             copyAttributes(originalScript, script);
             d.head.appendChild(script);
+            originalScript.remove();
         }
         
         /**
