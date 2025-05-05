@@ -13,112 +13,166 @@ declare(strict_types=1);
  */
 
 $configViewModel = $block->getData('configViewModel');
+$config = $configViewModel->getConfig();
 
-
-$timeOutContent = '';
-$timeOutContent2 = '';
-if ($configViewModel->getConfig()->isTimeOutEnabled() === true) {
-    $timeOutContent = "let timeOut = setTimeout(initScripts, {$configViewModel->getConfig()->getTimeOut()});";
-    $timeOutContent2 = 'clearTimeout(timeOut);';
+// Prepare timeout configuration
+$timeoutConfig = '';
+$clearTimeoutConfig = '';
+if ($config->isTimeOutEnabled()) {
+    $timeoutConfig = sprintf("let timeOut = setTimeout(initScripts, %d);", $config->getTimeOut());
+    $clearTimeoutConfig = 'clearTimeout(timeOut);';
 }
 
-$delayEventContent = implode('', array_map(static function($delayEvent): string {
-    return 'd.addEventListener(\'' . $delayEvent . '\', initScriptsOnEvent);';
-}, $configViewModel->getConfig()->getDelayEvents()));
-$removeDelayEventContent = implode('', array_map(static function($delayEvent): string {
-    return 'd.removeEventListener(\'' . $delayEvent . '\', initScriptsOnEvent);';
-}, $configViewModel->getConfig()->getDelayEvents()));
+// Prepare event listeners
+$delayEvents = $config->getDelayEvents();
+$addEventListeners = '';
+$removeEventListeners = '';
+
+foreach ($delayEvents as $event) {
+    $addEventListeners .= sprintf("d.addEventListener('%s', initScriptsOnEvent);", $event);
+    $removeEventListeners .= sprintf("d.removeEventListener('%s', initScriptsOnEvent);", $event);
+}
 
 $scriptContent = <<<JS
 (function (w, d) {
     console.info('%c🚀 Extreme Lazy Load JavaScript is now active and ready!', 'color: #28a745; font-weight: bold; font-size: 12px;');
-    w.lozyScriptsLoaded = w.lazyScriptsEventsLoaded = false;
-    function callback () {
-        if (w.lozyScriptsLoaded === true) {
+    
+    // Initialize state flags
+    w.lozyScriptsLoaded = false;
+    w.lazyScriptsEventsLoaded = false;
+    
+    function callback() {
+        if (w.lozyScriptsLoaded) {
             return;
         }
+        
         w.lozyScriptsLoaded = true;
-
+        
         const scripts = d.querySelectorAll('script[type=lazyload]');
-        let extremeLazyLoadIterator = 0;
-
-        {$timeOutContent}
-        {$delayEventContent}
-
-        function initScriptsOnEvent(event) {
-            {$removeDelayEventContent}
-            {$timeOutContent2}
-
+        let scriptIndex = 0;
+        
+        // Set timeout if enabled
+        {$timeoutConfig}
+        
+        // Add event listeners for configured delay events
+        {$addEventListeners}
+        
+        /**
+         * Initialize scripts when event is triggered
+         */
+        function initScriptsOnEvent() {
+            // Remove event listeners once triggered
+            {$removeEventListeners}
+            
+            // Clear timeout if it's set
+            {$clearTimeoutConfig}
+            
             initScripts();
         }
-
+        
+        /**
+         * Initialize loading of the next script
+         */
         function initScripts() {
-            if (scripts.length === 0 || scripts.length <= extremeLazyLoadIterator + 1) {
+            if (scripts.length === 0 || scriptIndex >= scripts.length) {
                 return;
             }
-            let script = scripts[extremeLazyLoadIterator];
-            if (script.getAttribute('data-lazy-source') !== null) {
+            
+            const script = scripts[scriptIndex];
+            
+            if (script.hasAttribute('data-lazy-source')) {
                 loadExternalJs(script);
             } else {
                 loadInlineJs(script);
             }
         }
-
-        function iterateLoadScript()
-        {
-            extremeLazyLoadIterator++;
-
+        
+        /**
+         * Process next script and trigger events if all scripts are loaded
+         */
+        function processNextScript() {
+            scriptIndex++;
+            
             initScripts();
-
-            if (w.lazyScriptsEventsLoaded === false && scripts.length === extremeLazyLoadIterator + 1) {
+            
+            // If all scripts are loaded, trigger events
+            if (!w.lazyScriptsEventsLoaded && scriptIndex >= scripts.length) {
                 w.lazyScriptsEventsLoaded = true;
-
-                w.dispatchEvent(new Event("load"))
-                d.dispatchEvent(new Event("DOMContentLoaded"))
-                d.dispatchEvent(new Event("LazyScriptsLoaded"))
+                
+                w.dispatchEvent(new Event("load"));
+                d.dispatchEvent(new Event("DOMContentLoaded"));
+                d.dispatchEvent(new Event("LazyScriptsLoaded"));
             }
         }
-
-        function loadExternalJs(oldScript) {
+        
+        /**
+         * Load external JavaScript file
+         * @param {HTMLElement} originalScript
+         */
+        function loadExternalJs(originalScript) {
             const script = d.createElement('script');
             script.type = 'text/javascript';
-            script.src = oldScript.getAttribute('data-lazy-source');
-            // script.async = true;
-            script.onload = iterateLoadScript;
-            script.onerror = iterateLoadScript;
-            if (typeof(oldScript.attributes) !== "undefined") {
-                for (var attr, i = 0, attrs = script.attributes, n = attrs.length; i < n; i++) {
-                    attr = attrs[i];
-                    if (attr.nodeName !== 'data-lazy-source' && attr.nodeName !== 'type') {
-                        script.setAttribute(attr.nodeName, attr.nodeValue);
-                    }
-                }
-            }
+            script.src = originalScript.getAttribute('data-lazy-source');
+            script.onload = processNextScript;
+            script.onerror = processNextScript;
+            
+            copyAttributes(originalScript, script);
             d.head.appendChild(script);
         }
-
-        function loadInlineJs(element) {
+        
+        /**
+         * Load inline JavaScript
+         * @param {HTMLElement} originalScript
+         */
+        function loadInlineJs(originalScript) {
             const script = d.createElement('script');
             script.type = 'text/javascript';
-            script.innerHTML = element.innerHTML;
-            element.before(script);
-            element.remove();
-            iterateLoadScript();
+            
+            script.innerHTML = originalScript.innerHTML;
+            copyAttributes(originalScript, script);
+            
+            originalScript.parentNode.replaceChild(script, originalScript);
+            
+            processNextScript();
         }
-
+        
+        /**
+         * Copy attributes from original script to new script
+         * @param {HTMLElement} source
+         * @param {HTMLElement} target
+         */
+        function copyAttributes(source, target) {
+            const ignoreAttributes = ['data-lazy-source', 'type', 'nonce', 'innerHTML'];
+            
+            // Handle nonce for CSP
+            const nonce = source.nonce || source.getAttribute("nonce");
+            if (nonce) {
+                target.setAttribute('nonce', nonce);
+                target.nonce = nonce;
+            }
+            
+            Array.from(source.attributes).forEach(attr => {
+                if (!ignoreAttributes.includes(attr.nodeName)) {
+                    target.setAttribute(attr.nodeName, attr.nodeValue);
+                }
+            });
+        }
+        
+        // Handle localStorage caching for returning visitors
         if (localStorage) {
             if (localStorage.getItem('extremeLazyLoad') === 'true') {
-                setTimeout(function () {
+                setTimeout(() => {
                     d.dispatchEvent(new Event("ExtremeLazyLoad"));
                 }, 1000);
             } else {
-                d.addEventListener('LazyScriptsLoaded', function () {
+                d.addEventListener('LazyScriptsLoaded', () => {
                     localStorage.setItem('extremeLazyLoad', 'true');
                 });
             }
         }
-    };
-
+    }
+    
+    // Execute callback when DOM is ready
     if (d.readyState !== 'loading') {
         callback();
     } else {
