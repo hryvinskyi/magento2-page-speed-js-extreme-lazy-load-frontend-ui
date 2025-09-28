@@ -69,6 +69,9 @@ class LazyLoadModification implements ModificationInterface
             return;
         }
 
+        // Add predefined marker attributes to RequireJS script tags
+        $this->addScriptMarkerAttributes($html);
+
         $tagList = $this->jsFinder->findAll($html);
 
         $replaceData = [];
@@ -101,5 +104,54 @@ class LazyLoadModification implements ModificationInterface
                 $replaceElementData['end']
             );
         }
+    }
+
+    /**
+     * Add predefined marker attributes to RequireJS script tags
+     *
+     * @param string $html
+     * @return void
+     */
+    private function addScriptMarkerAttributes(string &$html): void
+    {
+        // Add predefined marker attributes to requirejs/require.js script tags
+        $html = preg_replace_callback(
+            '/<script([^>]*src=["\'][^"\']*requirejs\/require(?:\.min)?\.js[^"\']*["\'][^>]*)>/i',
+            function ($matches) {
+                $scriptTag = $matches[0];
+                // Only add attribute if it doesn't already exist
+                if (!str_contains($scriptTag, 'data-execute-marker=')) {
+                    $scriptTag = str_replace('<script', '<script data-execute-marker="__lazyLoadMarker_require_js"', $scriptTag);
+                }
+                return $scriptTag;
+            },
+            $html
+        );
+
+        // Add predefined marker attributes to mage/requirejs/static.js script tags
+        $html = preg_replace_callback(
+            '/<script([^>]*src=["\'][^"\']*mage\/requirejs\/static(?:\.min)?\.js[^"\']*["\'][^>]*)>/i',
+            function ($matches) {
+                $scriptTag = $matches[0];
+                // Only add attribute if it doesn't already exist
+                if (!str_contains($scriptTag, 'data-execute-marker=')) {
+                    $scriptTag = str_replace('<script', '<script data-execute-marker="__lazyLoadMarker_static_js"', $scriptTag);
+                }
+                return $scriptTag;
+            },
+            $html
+        );
+        $html = preg_replace_callback(
+            '/<script([^>]*src=["\'][^"\']*requirejs-config(?:\.min)?\.js[^"\']*["\'][^>]*)>/i',
+            function ($matches) {
+                $scriptTag = $matches[0];
+                // Only add attribute if it doesn't already exist
+                if (!str_contains($scriptTag, 'data-execute-marker=')) {
+                    $scriptTag = str_replace('<script', '<script data-execute-marker="__lazyLoadMarker_require_config_js"', $scriptTag);
+                }
+                return $scriptTag;
+            },
+            $html
+        );
     }
 }
