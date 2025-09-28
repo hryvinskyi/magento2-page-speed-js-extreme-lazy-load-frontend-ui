@@ -16,170 +16,666 @@ $configViewModel = $block->getData('configViewModel');
 $config = $configViewModel->getConfig();
 
 // Prepare timeout configuration
-$timeoutConfig = '';
-$clearTimeoutConfig = '';
-if ($config->isTimeOutEnabled()) {
-    $timeoutConfig = sprintf("let timeOut = setTimeout(initScripts, %d);", $config->getTimeOut());
-    $clearTimeoutConfig = 'clearTimeout(timeOut);';
-}
+$timeoutEnabled = $config->isTimeOutEnabled() ? 'true' : 'false';
+$timeout = (int)$config->getTimeOut();
 
 // Prepare event listeners
-$delayEvents = $config->getDelayEvents();
-$addEventListeners = '';
-$removeEventListeners = '';
-
-foreach ($delayEvents as $event) {
-    $addEventListeners .= sprintf("d.addEventListener('%s', initScriptsOnEvent);", $event);
-    $removeEventListeners .= sprintf("d.removeEventListener('%s', initScriptsOnEvent);", $event);
-}
+$delayEvents = json_encode($config->getDelayEvents());
 
 $scriptContent = <<<JS
-(function (w, d) {
-    console.info('%c🚀 Extreme Lazy Load JavaScript is now active and ready!', 'color: #28a745; font-weight: bold; font-size: 12px;');
-    
-    // Initialize state flags
-    w.lozyScriptsLoaded = false;
-    w.lazyScriptsEventsLoaded = false;
-    
-    function callback() {
-        if (w.lozyScriptsLoaded) {
-            return;
+/**
+ * Copyright (c) 2025. All rights reserved.
+ * @author: Volodymyr Hryvinskyi <mailto:volodymyr@hryvinskyi.com>
+ */
+
+/**
+ * External JavaScript file for Extreme JavaScript Lazy Load
+ * This version loads configuration from global variable for flexibility
+ */
+(function () {
+    'use strict';
+
+    /**
+     * Main LazyLoader class
+     */
+    class LazyLoader {
+        constructor(config) {
+            this.config = this.mergeConfig(config);
+            this.state = {
+                initialized: false,
+                scriptsLoaded: false,
+                eventsLoaded: false,
+                currentIndex: 0,
+                scripts: [],
+                timeoutId: null
+            };
+
+            this.eventHandlers = new Map();
+            this.scriptExecutor = new ScriptExecutor();
+            this.eventManager = new EventManager();
+
+            this.init();
         }
-        
-        w.lozyScriptsLoaded = true;
-        
-        const scripts = d.querySelectorAll('script[type=lazyload]');
-        let scriptIndex = 0;
-        
-        // Set timeout if enabled
-        {$timeoutConfig}
-        
-        // Add event listeners for configured delay events
-        {$addEventListeners}
-        
+
         /**
-         * Initialize scripts when event is triggered
+         * Merge user config with defaults
          */
-        function initScriptsOnEvent() {
-            // Remove event listeners once triggered
-            {$removeEventListeners}
-            
-            // Clear timeout if it's set
-            {$clearTimeoutConfig}
-            
-            initScripts();
+        mergeConfig(userConfig) {
+            const defaults = {
+                enabled: true,
+                timeout: {
+                    enabled: {$timeoutEnabled},
+                    delay: {$timeout}
+                },
+                triggers: {
+                    events: {$delayEvents},
+                    immediate: false
+                },
+                execution: {
+                    maxWaitTime: 1000,
+                    pollInterval: 1,
+                },
+                logging: {
+                    enabled: false,
+                    verbose: false
+                },
+                cache: {
+                    enabled: true,
+                    key: 'extremeLazyLoad'
+                }
+            };
+
+            return Object.assign({}, defaults, userConfig);
         }
-        
+
         /**
-         * Initialize loading of the next script
+         * Initialize the lazy loader
          */
-        function initScripts() {
-            if (scripts.length === 0 || scriptIndex >= scripts.length) {
+        init() {
+            if (this.state.initialized || !this.config.enabled) {
                 return;
             }
-            
-            const script = scripts[scriptIndex];
-            
-            if (script.hasAttribute('data-lazy-source')) {
-                loadExternalJs(script);
-            } else {
-                loadInlineJs(script);
+
+            this.state.initialized = true;
+            this.logger.info('🚀 Extreme Lazy Load initialized');
+
+            this.collectScripts();
+
+            if (this.state.scripts.length === 0) {
+                this.logger.warn('No lazy load scripts found');
+                return;
             }
+
+            this.setupTriggers();
+            this.checkCache();
         }
-        
+
         /**
-         * Process next script and trigger events if all scripts are loaded
+         * Collect all scripts marked for lazy loading
          */
-        function processNextScript() {
-            scriptIndex++;
-            
-            initScripts();
-            
-            // If all scripts are loaded, trigger events
-            if (!w.lazyScriptsEventsLoaded && scriptIndex >= scripts.length) {
-                w.lazyScriptsEventsLoaded = true;
-                
-                w.dispatchEvent(new Event("load"));
-                d.dispatchEvent(new Event("DOMContentLoaded"));
-                d.dispatchEvent(new Event("LazyScriptsLoaded"));
+        collectScripts() {
+            const scriptElements = document.querySelectorAll('script[type=lazyload]');
+            this.state.scripts = Array.from(scriptElements)
+                .filter(element => !this.isScriptAlreadyLoaded(element))
+                .map((element, index) => ({
+                    element,
+                    index,
+                    type: element.hasAttribute('data-lazy-source') ? 'external' : 'inline',
+                    source: element.getAttribute('data-lazy-source'),
+                    content: element.innerHTML || element.textContent || '',
+                    attributes: this.extractAttributes(element),
+                    loaded: false,
+                    error: null
+                }));
+
+            this.logger.info(`Found \${this.state.scripts.length} scripts to lazy load`);
+        }
+
+        /**
+         * Check if a script has already been loaded via merged files
+         */
+        isScriptAlreadyLoaded(element) {
+            const source = element.getAttribute('data-lazy-source');
+
+            if (source) {
+                // Check if this script already exists in the DOM (loaded normally or merged)
+                const existingScripts = document.querySelectorAll('script[src]');
+                for (const script of existingScripts) {
+                    if (script.src === source || script.src.includes(source)) {
+                        this.logger.verbose(`Script already loaded: \${source}`);
+                        return true;
+                    }
+
+                    // Check if script has merged marker that matches our source
+                    const mergedMarker = script.getAttribute('data-execute-marker');
+                    if (mergedMarker && window[mergedMarker]) {
+                        this.logger.verbose(`Script already loaded via merged file with marker: \${mergedMarker}`);
+                        return true;
+                    }
+                }
             }
+
+            return false;
         }
-        
+
+
         /**
-         * Load external JavaScript file
-         * @param {HTMLElement} originalScript
+         * Extract attributes from script element
          */
-        function loadExternalJs(originalScript) {
-            const script = d.createElement('script');
-            script.type = 'text/javascript';
-            script.src = originalScript.getAttribute('data-lazy-source');
-            script.onload = processNextScript;
-            script.onerror = processNextScript;
-            
-            copyAttributes(originalScript, script);
-            d.head.appendChild(script);
-            originalScript.remove();
-        }
-        
-        /**
-         * Load inline JavaScript
-         * @param {HTMLElement} originalScript
-         */
-        function loadInlineJs(originalScript) {
-            const script = d.createElement('script');
-            script.type = 'text/javascript';
-            
-            script.innerHTML = originalScript.innerHTML;
-            copyAttributes(originalScript, script);
-            
-            originalScript.parentNode.replaceChild(script, originalScript);
-            
-            processNextScript();
-        }
-        
-        /**
-         * Copy attributes from original script to new script
-         * @param {HTMLElement} source
-         * @param {HTMLElement} target
-         */
-        function copyAttributes(source, target) {
-            const ignoreAttributes = ['data-lazy-source', 'type', 'nonce', 'innerHTML'];
-            
-            // Handle nonce for CSP
-            const nonce = source.nonce || source.getAttribute("nonce");
+        extractAttributes(element) {
+            const attributes = {};
+            const ignore = ['type', 'data-lazy-source', 'innerHTML', 'textContent'];
+
+            Array.from(element.attributes).forEach(attr => {
+                if (!ignore.includes(attr.nodeName)) {
+                    attributes[attr.nodeName] = attr.nodeValue;
+                }
+            });
+
+            // Special handling for nonce
+            const nonce = element.nonce || element.getAttribute('nonce');
             if (nonce) {
-                target.setAttribute('nonce', nonce);
-                target.nonce = nonce;
+                attributes.nonce = nonce;
             }
-            
-            Array.from(source.attributes).forEach(attr => {
-                if (!ignoreAttributes.includes(attr.nodeName)) {
-                    target.setAttribute(attr.nodeName, attr.nodeValue);
+
+            return attributes;
+        }
+
+        /**
+         * Setup event triggers for lazy loading
+         */
+        setupTriggers() {
+            if (this.config.triggers.immediate) {
+                this.startLoading();
+                return;
+            }
+
+            // Setup timeout trigger if enabled
+            if (this.config.timeout.enabled && this.config.timeout.delay > 0) {
+                this.state.timeoutId = setTimeout(() => {
+                    this.startLoading();
+                }, this.config.timeout.delay);
+            }
+
+            // Setup event triggers
+            this.config.triggers.events.forEach(eventName => {
+                const handler = this.createEventHandler();
+                this.eventHandlers.set(eventName, handler);
+                document.addEventListener(eventName, handler, {passive: true, once: true});
+            });
+        }
+
+        /**
+         * Create event handler for triggers
+         */
+        createEventHandler() {
+            return (event) => {
+                this.cleanupTriggers();
+                this.startLoading();
+            };
+        }
+
+        /**
+         * Cleanup all triggers
+         */
+        cleanupTriggers() {
+            // Clear timeout
+            if (this.state.timeoutId) {
+                clearTimeout(this.state.timeoutId);
+                this.state.timeoutId = null;
+            }
+
+            // Remove event listeners
+            this.eventHandlers.forEach((handler, eventName) => {
+                document.removeEventListener(eventName, handler);
+            });
+            this.eventHandlers.clear();
+        }
+
+        /**
+         * Start loading scripts sequentially
+         */
+        async startLoading() {
+            if (this.state.scriptsLoaded) {
+                return;
+            }
+
+            this.logger.info('Starting script loading sequence');
+            this.state.scriptsLoaded = true;
+
+            while (this.state.currentIndex < this.state.scripts.length) {
+                const script = this.state.scripts[this.state.currentIndex];
+
+                try {
+                    setTimeout(await this.loadScript(script), 100);
+                    script.loaded = true;
+                    this.eventManager.dispatchScriptLoaded(script);
+                } catch (error) {
+                    script.error = error;
+                    this.logger.error(`Failed to load script \${script.index}:`, error);
+                    this.eventManager.dispatchScriptError(script, error);
+                }
+
+                this.state.currentIndex++;
+            }
+
+            this.onAllScriptsLoaded();
+        }
+
+        /**
+         * Load individual script
+         */
+        async loadScript(script) {
+            this.logger.verbose(`Loading script \${script.index} (\${script.type})`);
+
+            if (script.type === 'external') {
+                return await this.scriptExecutor.loadExternal(script, this.config.execution);
+            } else {
+                return await this.scriptExecutor.loadInline(script, this.config.execution);
+            }
+        }
+
+        /**
+         * Handle completion of all scripts
+         */
+        onAllScriptsLoaded() {
+            if (this.state.eventsLoaded) {
+                return;
+            }
+
+            this.state.eventsLoaded = true;
+            this.eventManager.dispatchAllLoaded();
+            this.cacheManager.set();
+
+            this.logger.info('✅ All lazy scripts loaded successfully');
+
+            const stats = this.getLoadingStats();
+            this.logger.verbose('Loading stats:', stats);
+        }
+
+        /**
+         * Get loading statistics
+         */
+        getLoadingStats() {
+            const total = this.state.scripts.length;
+            const loaded = this.state.scripts.filter(s => s.loaded).length;
+            const failed = this.state.scripts.filter(s => s.error).length;
+
+            return {
+                total,
+                loaded,
+                failed,
+                success_rate: total > 0 ? (loaded / total * 100).toFixed(2) + '%' : 'N/A'
+            };
+        }
+
+        /**
+         * Check cache for returning visitors
+         */
+        checkCache() {
+            if (!this.config.cache.enabled) {
+                return;
+            }
+
+            if (this.cacheManager.get()) {
+                setTimeout(() => {
+                    this.eventManager.dispatchCached();
+                }, 1000);
+            }
+        }
+
+        /**
+         * Logger utility
+         */
+        get logger() {
+            const self = this;
+            return {
+                info: (...args) => {
+                    if (self.config.logging.enabled) {
+                        console.info('%c[LazyLoad]', 'color: #28a745; font-weight: bold;', ...args);
+                    }
+                },
+                warn: (...args) => {
+                    if (self.config.logging.enabled) {
+                        console.warn('[LazyLoad]', ...args);
+                    }
+                },
+                error: (...args) => {
+                    console.error('[LazyLoad]', ...args);
+                },
+                verbose: (...args) => {
+                    if (self.config.logging.verbose) {
+                        console.log('[LazyLoad:Debug]', ...args);
+                    }
+                }
+            };
+        }
+
+        /**
+         * Cache manager
+         */
+        get cacheManager() {
+            const key = this.config.cache.key;
+            return {
+                get: () => {
+                    try {
+                        return localStorage.getItem(key) === 'true';
+                    } catch (e) {
+                        return false;
+                    }
+                },
+                set: () => {
+                    try {
+                        localStorage.setItem(key, 'true');
+                    } catch (e) {
+                        // Ignore localStorage errors
+                    }
+                }
+            };
+        }
+    }
+
+    /**
+     * Script Executor - Handles actual script loading and execution
+     */
+    class ScriptExecutor {
+        constructor() {
+            this.markerCheckers = new Map();
+            this.attributeExtensions = new Map();
+            this.initializeDefaultCheckers();
+        }
+
+        /**
+         * Initialize default marker checkers
+         */
+        initializeDefaultCheckers() {
+            // RequireJS availability checker with context validation
+            this.registerMarkerChecker('__lazyLoadMarker_require_js', () => {
+                return typeof window.requirejs === 'function' &&
+                       typeof window.requirejs.s !== 'undefined' &&
+                       window.requirejs.s.contexts?._ !== 'undefined' &&
+                       // Ensure RequireJS is ready to handle new modules
+                       !window.requirejs.s.contexts._?.inCheckLoaded;
+            });
+
+            // Static JS with text module checker
+            this.registerMarkerChecker('__lazyLoadMarker_static_js', () => {
+                return typeof window.storageShim === 'object';
+            });
+        }
+
+        /**
+         * Register a custom marker checker
+         * @param {string} markerName - The marker name to check for
+         * @param {Function} checkerFunction - Function that returns boolean indicating if condition is met
+         */
+        registerMarkerChecker(markerName, checkerFunction) {
+            this.markerCheckers.set(markerName, checkerFunction);
+        }
+
+        /**
+         * Register a custom attribute extension
+         * @param {string} extensionName - The extension name
+         * @param {Function} extensionFunction - Function that modifies script element
+         */
+        registerAttributeExtension(extensionName, extensionFunction) {
+            this.attributeExtensions.set(extensionName, extensionFunction);
+        }
+
+        /**
+         * Apply attribute extensions to script element
+         * @param {HTMLScriptElement} script - The script element
+         * @param {Object} scriptInfo - Script information object
+         */
+        applyAttributeExtensions(script, scriptInfo) {
+            // Apply all registered extensions to every script
+            this.attributeExtensions.forEach((extension, extensionName) => {
+                try {
+                    extension(script, scriptInfo);
+                } catch (error) {
+                    console.warn(`[LazyLoad] Attribute extension failed for \${extensionName}:`, error);
                 }
             });
         }
-        
-        // Handle localStorage caching for returning visitors
-        if (localStorage) {
-            if (localStorage.getItem('extremeLazyLoad') === 'true') {
-                setTimeout(() => {
-                    d.dispatchEvent(new Event("ExtremeLazyLoad"));
-                }, 1000);
-            } else {
-                d.addEventListener('LazyScriptsLoaded', () => {
-                    localStorage.setItem('extremeLazyLoad', 'true');
-                });
+
+        /**
+         * Check if marker condition is satisfied
+         * @param {string} marker - The marker to check
+         * @returns {boolean}
+         */
+        isMarkerReady(marker) {
+            // Check for standard window marker first
+            if (window[marker]) {
+                delete window[marker];
+                return true;
             }
+
+            // Check for registered custom checker
+            const checker = this.markerCheckers.get(marker);
+            if (checker && typeof checker === 'function') {
+                try {
+                    return checker();
+                } catch (error) {
+                    console.warn(`[LazyLoad] Marker checker failed for \${marker}:`, error);
+                    return false;
+                }
+            }
+
+            return false;
+        }
+
+        /**
+         * Poll for script execution marker
+         */
+        pollForMarker(marker, config) {
+            return new Promise((resolve) => {
+                const startTime = Date.now();
+                const checkInterval = config.pollInterval || 10;
+                const maxWait = config.maxWaitTime || 1000;
+                let timeOut;
+
+                const checkExecution = () => {
+                    if (this.isMarkerReady(marker)) {
+                        clearTimeout(timeOut);
+                        resolve();
+                    } else if (Date.now() - startTime < maxWait) {
+                        timeOut = setTimeout(checkExecution, checkInterval);
+                    } else {
+                        // Timeout reached, assume execution completed
+                        clearTimeout(timeOut);
+                        resolve();
+                    }
+                };
+
+                checkExecution();
+            });
+        }
+
+
+        /**
+         * Load external script
+         */
+        async loadExternal(scriptInfo, config) {
+            return new Promise((resolve, reject) => {
+
+                const script = document.createElement('script');
+                script.type = 'text/javascript';
+                script.src = scriptInfo.source;
+                script.async = false;
+                script.defer = false;
+
+                // Apply attributes
+                Object.entries(scriptInfo.attributes).forEach(([key, value]) => {
+                    if (key === 'nonce') {
+                        script.nonce = value;
+                    } else if (key === 'async') {
+                        script.async = value === 'true' || value === true;
+                    } else if (key === 'defer') {
+                        script.defer = value === 'true' || value === true;
+                    } else {
+                        script.setAttribute(key, value);
+                    }
+                });
+
+                // Apply attribute extensions
+                this.applyAttributeExtensions(script, scriptInfo);
+
+
+                script.onerror = () => {
+                    scriptInfo.element.remove();
+                    reject(new Error(`Failed to load external script: \${scriptInfo.source}`));
+                };
+
+                script.onload = () => {
+
+                    const marker = scriptInfo.attributes['data-execute-marker'];
+                    scriptInfo.element.remove();
+
+                    if (marker) {
+                        this.pollForMarker(marker, config).then(resolve);
+                    } else {
+                        resolve();
+                    }
+                };
+
+                // Insert script into DOM
+                document.head.appendChild(script);
+            });
+        }
+
+        /**
+         * Load inline script with execution confirmation
+         */
+        async loadInline(scriptInfo, config) {
+            return new Promise((resolve, reject) => {
+                const script = document.createElement('script');
+                script.type = 'text/javascript';
+
+                // Apply attributes
+                Object.entries(scriptInfo.attributes).forEach(([key, value]) => {
+                    if (key === 'nonce') {
+                        script.nonce = value;
+                    } else {
+                        script.setAttribute(key, value);
+                    }
+                });
+
+                // Apply attribute extensions
+                this.applyAttributeExtensions(script, scriptInfo);
+
+                // Create unique marker
+                const marker = `__lazyMarker_\${scriptInfo.index}_\${Date.now()}`;
+
+                // Wrap content with marker
+                script.textContent = `
+                    \${scriptInfo.content}
+                    ;(function() {
+                        window['\${marker}'] = true;
+                    })();
+                `;
+
+                // Replace original script
+                try {
+                    scriptInfo.element.parentNode.replaceChild(script, scriptInfo.element);
+                } catch (e) {
+                    reject(new Error(`Failed to inject inline script: \${e.message}`));
+                    return;
+                }
+
+                // Use shared polling method
+                this.pollForMarker(marker, config).then(resolve);
+            });
         }
     }
-    
-    // Execute callback when DOM is ready
-    if (d.readyState !== 'loading') {
-        callback();
-    } else {
-        d.addEventListener('DOMContentLoaded', callback);
+
+    /**
+     * Event Manager - Handles all custom events
+     */
+    class EventManager {
+        dispatchScriptLoaded(scriptInfo) {
+            this.dispatch('LazyScriptCompleted', {
+                scriptIndex: scriptInfo.index,
+                scriptType: scriptInfo.type,
+                scriptSrc: scriptInfo.source,
+                loaded: scriptInfo.loaded,
+                error: scriptInfo.error
+            });
+        }
+
+        dispatchScriptError(scriptInfo, error) {
+            this.dispatch('LazyScriptError', {
+                scriptIndex: scriptInfo.index,
+                scriptType: scriptInfo.type,
+                scriptSrc: scriptInfo.source,
+                error: error.message
+            });
+        }
+
+        dispatchAllLoaded() {
+            // Dispatch compatibility events
+            window.dispatchEvent(new Event('load'));
+            document.dispatchEvent(new Event('DOMContentLoaded'));
+
+            // Dispatch custom event
+            this.dispatch('LazyScriptsLoaded', {
+                timestamp: Date.now()
+            });
+        }
+
+        dispatchCached() {
+            this.dispatch('ExtremeLazyLoad', {
+                fromCache: true
+            });
+        }
+
+        dispatch(eventName, detail = {}) {
+            const event = new CustomEvent(eventName, {detail});
+            document.dispatchEvent(event);
+            window.dispatchEvent(event);
+        }
     }
-})(window, document);
+
+    /**
+     * Initialize on DOM ready
+     */
+    function initialize() {
+        // Check if already initialized
+        if (window.extremeLazyLoader) {
+            return;
+        }
+
+        // Get user configuration
+        const userConfig = window.extremeJsLazyLoadConfig || {};
+
+        // Create and expose loader instance
+        window.extremeLazyLoader = new LazyLoader(userConfig);
+
+        // Register any pre-defined attribute extensions from global variable
+        if (window.extremeJsLazyLoadAttributeExtensions) {
+            Object.entries(window.extremeJsLazyLoadAttributeExtensions).forEach(([name, func]) => {
+                window.extremeLazyLoader.scriptExecutor.registerAttributeExtension(name, func);
+            });
+        }
+
+        // Expose marker checker registration globally
+        window.registerLazyLoadMarkerChecker = (markerName, checkerFunction) => {
+            if (window.extremeLazyLoader && window.extremeLazyLoader.scriptExecutor) {
+                window.extremeLazyLoader.scriptExecutor.registerMarkerChecker(markerName, checkerFunction);
+            }
+        };
+    }
+
+    // Start initialization when DOM is ready
+    function initializeWhenReady() {
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', initialize);
+        } else {
+            // DOM is already ready, initialize immediately
+            initialize();
+        }
+    }
+    initializeWhenReady()
+})();
 JS;
 
 echo $secureRenderer->renderTag(
