@@ -13,8 +13,8 @@ use Hryvinskyi\PageSpeedApi\Api\Html\ReplaceIntoHtmlInterface;
 use Hryvinskyi\PageSpeedApi\Model\ModificationInterface;
 use Hryvinskyi\PageSpeedJsExtremeLazyLoad\Api\ConfigInterface;
 use Hryvinskyi\PageSpeedJsExtremeLazyLoad\Model\CanScriptLazyLoadingInterface;
+use Magento\Framework\App\Request\Http;
 use Magento\Framework\App\RequestInterface;
-use Magento\Store\Model\ScopeInterface;
 
 class LazyLoadModification implements ModificationInterface
 {
@@ -50,6 +50,10 @@ class LazyLoadModification implements ModificationInterface
      */
     public function execute(string &$html): void
     {
+        if ($this->request instanceof Http && $this->request->isAjax()) {
+            return;
+        }
+
         // @TODO Refactor to have a list to chacking if need disable or enable this functionality
         if ($this->config->isEnabled() === false) {
             return;
