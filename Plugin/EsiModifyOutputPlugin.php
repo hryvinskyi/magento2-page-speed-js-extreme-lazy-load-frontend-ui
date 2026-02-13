@@ -1,18 +1,15 @@
 <?php
 /**
- * Copyright (c) 2022. All rights reserved.
- * @author: Volodymyr Hryvinskyi <mailto:volodymyr@hryvinskyi.com>
+ * Copyright (c) 2026. Volodymyr Hryvinskyi. All rights reserved.
+ * Author: Volodymyr Hryvinskyi <volodymyr@hryvinskyi.com>
+ * GitHub: https://github.com/hryvinskyi
  */
 
 declare(strict_types=1);
 
 namespace Hryvinskyi\PageSpeedJsExtremeLazyLoadFrontendUi\Plugin;
 
-use Hryvinskyi\PageSpeedApi\Api\Finder\JsInterface as JsFinderInterface;
-use Hryvinskyi\PageSpeedApi\Api\Html\ReplaceIntoHtmlInterface;
-use Hryvinskyi\PageSpeedJsExtremeLazyLoad\Api\ConfigInterface;
-use Hryvinskyi\PageSpeedJsExtremeLazyLoad\Model\CanScriptLazyLoadingInterface;
-use Magento\Framework\App\Response\Http as HttpResponse;
+use Hryvinskyi\PageSpeedJsExtremeLazyLoadFrontendUi\Model\LazyLoadModification;
 use Magento\Framework\App\ResponseInterface;
 use Magento\PageCache\Controller\Block\Esi;
 
@@ -30,18 +27,8 @@ use Magento\PageCache\Controller\Block\Esi;
  */
 class EsiModifyOutputPlugin
 {
-    /**
-     * @param ConfigInterface $config
-     * @param JsFinderInterface $jsFinder
-     * @param ReplaceIntoHtmlInterface $replaceIntoHtml
-     * @param CanScriptLazyLoadingInterface $canScriptLazyLoading
-     * @param ResponseInterface $response
-     */
     public function __construct(
-        private readonly ConfigInterface $config,
-        private readonly JsFinderInterface $jsFinder,
-        private readonly ReplaceIntoHtmlInterface $replaceIntoHtml,
-        private readonly CanScriptLazyLoadingInterface $canScriptLazyLoading,
+        private readonly LazyLoadModification $lazyLoadModification,
         private readonly ResponseInterface $response
     ) {
     }
@@ -50,74 +37,12 @@ class EsiModifyOutputPlugin
      * Apply JS lazy-load modifications to the ESI response body after execution.
      *
      * @param Esi $subject
-     * @param mixed $result
-     *
-     * @return mixed
-     *
-     * @noinspection PhpUnusedParameterInspection
-     */
-    public function afterExecute(Esi $subject, mixed $result): mixed
-    {
-        if (!$this->config->isEnabled()) {
-            return $result;
-        }
-
-        if (!$this->response instanceof HttpResponse) {
-            return $result;
-        }
-
-        $content = (string)$this->response->getContent();
-
-        if ($content === '') {
-            return $result;
-        }
-
-        $this->applyLazyLoad($content);
-        $this->response->setContent($content);
-
-        return $result;
-    }
-
-    /**
-     * Apply lazy-load transformation to script tags in the HTML fragment.
-     *
-     * @param string $html
-     *
      * @return void
      */
-    private function applyLazyLoad(string &$html): void
+    public function afterExecute(Esi $subject): void
     {
-        $tagList = $this->jsFinder->findAll($html);
-
-        $replaceData = [];
-        foreach ($tagList as $tag) {
-            if ($this->canScriptLazyLoading->execute($tag) === false) {
-                continue;
-            }
-
-            $replaceAttributes = [
-                'type' => 'lazyload',
-                'src' => null,
-            ];
-
-            if (isset($tag->getAttributes()['src'])) {
-                $replaceAttributes['data-lazy-source'] = $tag->getAttributes()['src'];
-            }
-
-            $replaceData[] = [
-                'start' => $tag->getStart(),
-                'end' => $tag->getEnd(),
-                'content' => $tag->getContentWithUpdatedAttribute($replaceAttributes),
-            ];
-        }
-
-        foreach (array_reverse($replaceData) as $replaceElementData) {
-            $html = $this->replaceIntoHtml->execute(
-                $html,
-                $replaceElementData['content'],
-                $replaceElementData['start'],
-                $replaceElementData['end']
-            );
-        }
+        $content = (string)$this->response->getContent();
+        $this->lazyLoadModification->execute($content);
+        $this->response->setContent($content);
     }
 }

@@ -1,6 +1,6 @@
 {
     "name": "hryvinskyi/magento2-page-speed-js-extreme-lazy-load-frontend-ui",
-    "version": "1.0.17",
+    "version": "1.0.18",
     "description": "N/A",
     "type": "magento2-module",
     "require": {
