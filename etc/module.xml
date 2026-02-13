@@ -9,6 +9,7 @@
     <module name="Hryvinskyi_PageSpeedJsExtremeLazyLoadFrontendUi">
         <sequence>
             <module name="Hryvinskyi_PageSpeedJsExtremeLazyLoad"/>
+            <module name="Magento_PageCache"/>
         </sequence>
     </module>
 </config>

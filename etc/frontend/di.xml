@@ -28,4 +28,9 @@
             </argument>
         </arguments>
     </type>
+    <type name="Magento\PageCache\Controller\Block\Esi">
+        <plugin name="hryvinskyi_page_speed_esi_lazy_load"
+                type="Hryvinskyi\PageSpeedJsExtremeLazyLoadFrontendUi\Plugin\EsiModifyOutputPlugin"
+                sortOrder="100"/>
+    </type>
 </config>
